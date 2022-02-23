@@ -27,13 +27,12 @@ my $sflg = 0 ; # スリープフラグ
 until ( flock $FH , LOCK_SH | LOCK_NB ) { sleep 0.25 ; $sflg = 1 }  ; # 書込みロック(ブロック無し)
 sleep 0.25 if $sflg -- ; 
 flock $FH , LOCK_SH ;
-sysseek $FH , 0, 2 ; # ファイルの読み書き位置を最後に移動。
 
-if ( ! $o{a} && sysseek $FH , -2 * $LEN , 1 ) { ; # 3番目の引数 whenceは1で現在の位置。
+if ( ! $o{a} && sysseek $FH , -2 * $LEN , 2 ) { # 3番目の引数 whenceは1で現在の位置で、2で最後からの位置。
   sysread $FH , my $s1 , 2 * $LEN ; 
   my $s2 = substr $s1 , $LEN , $LEN , '' ; # 最後の引数は取り出し後に埋める文字列。結局、読み取った分を半分ずつにする。
   sysseek $FH , -$LEN , 1 if $s1 =~ m/^\Q$H\E.*:.*\n$/ && $s2 =~ m/^\Q$H\E.*:.*\n$/ ; # 計算時間が少し掛からないか気になる。
-} else { sysseek $FH , 0, 2 } # 念のため。というのは、if文の条件が失敗した時にどうなるか、明文化されてないため。
+} else { sysseek $FH , 0, 2 } 
 print $FH "$DTSTR\n" ; # flock $FH , LOCK_UN ; 
 close $FH ; 
 
