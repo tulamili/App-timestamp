@@ -1,13 +1,13 @@
 #!/usr/bin/perl
 
-use 5.001 ; 
+use 5.011 ; 
 use strict ; 
 use warnings ; 
 use autodie qw[ open ] ;
-use Fcntl qw[ :DEFAULT :flock ] ;
+use Fcntl qw[ :DEFAULT :flock :seek] ;
 use Getopt::Std ; getopts 'ab:d:sw:z:' , \my %o ; 
 use POSIX qw [ strftime ] ; 
-use Time::HiRes qw[ sleep ] ; 
+use Time::HiRes qw[ sleep gettimeofday tv_interval ] ; 
 use Time::Local qw[ timegm ] ; # タイムゾーンごとに異なる時差を算出するため
 
 & HELP_MESSAGE if @ARGV == 0 ;
@@ -28,13 +28,27 @@ until ( flock $FH , LOCK_SH | LOCK_NB ) { sleep 0.25 ; $sflg = 1 }  ; # 書込�
 sleep 0.25 if $sflg -- ; 
 flock $FH , LOCK_SH ;
 
-if ( ! $o{a} && sysseek $FH , -2 * $LEN , 2 ) { # 3番目の引数 whenceは1で現在の位置で、2で最後からの位置。
-  sysread $FH , my $s1 , 2 * $LEN ; 
-  my $s2 = substr $s1 , $LEN , $LEN , '' ; # 最後の引数は取り出し後に埋める文字列。結局、読み取った分を半分ずつにする。
-  sysseek $FH , -$LEN , 1 if $s1 =~ m/^\Q$H\E.*:.*\n$/ && $s2 =~ m/^\Q$H\E.*:.*\n$/ ; # 計算時間が少し掛からないか気になる。
-} else { sysseek $FH , 0, 2 } 
+if (
+  ! $o{a} && sysseek $FH , -2 * $LEN , SEEK_END 
+  and do { sysread $FH , my $s1 , 2 * $LEN ; my $s2 = substr $s1 , $LEN , $LEN , '' ;
+          $s1 =~ m/^\Q$H\E.*:.*\n$/ && $s2 =~ m/^\Q$H\E.*:.*\n$/ }
+  and do { my $t = sysseek $FH , -1 , SEEK_CUR ; $t ? do { sysread $FH , my $c , 1 ; $c eq "\n" } : 1 }
+  ) { sysseek $FH , -$LEN , SEEK_END } else { sysseek $FH , 0, SEEK_END } 
+
+#my $flg = ! $o{a} && sysseek $FH , -2 * $LEN , 2  ; 
+#$flg = 0 unless do { my $t = sysseek $FH , -1 , 1 ; $t ? do { sysread $FH , my $c , 1 ; say "\$c='$c'" ;$c eq "\n" } : 1 } ; 
+#sysread $FH , my $s1 , 2 * $LEN ; 
+#my $s2 = substr $s1 , $LEN , $LEN , '' ;
+#$flg = 0 unless $s1 =~ m/^\Q$H\E.*:.*\n$/ && $s2 =~ m/^\Q$H\E.*:.*\n$/ ; 
+#$flg ? sysseek $FH , -$LEN , 1 : sysseek $FH , 0, 2 ;
+
+#my $fp = (stat($FH))[2] ; say $fp ;chmod 000, $FH ; $FH->flush ;
 print $FH "$DTSTR\n" ; # flock $FH , LOCK_UN ; 
+#$FH->flush ;chmod $fp, $FH ; 
+#sleep 5 ;
+
 close $FH ; 
+
 
 ## ヘルプの扱い
 sub VERSION_MESSAGE {}
